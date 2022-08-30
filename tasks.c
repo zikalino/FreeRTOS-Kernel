@@ -39,6 +39,12 @@
 #include "timers.h"
 #include "stack_macros.h"
 
+#ifdef ESP_PLATFORM
+#include "esp_newlib.h"             /* required for esp_reent_init() in tasks.c */
+#undef _REENT_INIT_PTR
+#define _REENT_INIT_PTR                 esp_reent_init
+#endif
+
 /* Lint e9021, e961 and e750 are suppressed as a MISRA exception justified
  * because the MPU ports require MPU_WRAPPERS_INCLUDED_FROM_API_FILE to be defined
  * for the header files above, but not in this file, in order to generate the
@@ -363,7 +369,15 @@ PRIVILEGED_DATA static List_t xPendingReadyList;                         /*< Tas
 PRIVILEGED_DATA static volatile UBaseType_t uxCurrentNumberOfTasks = ( UBaseType_t ) 0U;
 PRIVILEGED_DATA static volatile TickType_t xTickCount = ( TickType_t ) configINITIAL_TICK_COUNT;
 PRIVILEGED_DATA static volatile UBaseType_t uxTopReadyPriority = tskIDLE_PRIORITY;
+#if ( ( ESP_PLATFORM == 1 ) && ( configNUM_CORES > 1 ) )
+/*
+Workaround for non-thread safe multi-core OS startup (see IDF-4524)
+*/
+PRIVILEGED_DATA static volatile BaseType_t xSchedulerRunningPerCore[ configNUM_CORES ] = { pdFALSE };
+#define xSchedulerRunning xSchedulerRunningPerCore[ portGET_CORE_ID() ]
+#else // ( ESP_PLATFORM == 1 ) && ( configNUM_CORES > 1 )
 PRIVILEGED_DATA static volatile BaseType_t xSchedulerRunning = pdFALSE;
+#endif // ( ESP_PLATFORM == 1 ) && ( configNUM_CORES > 1 )
 PRIVILEGED_DATA static volatile TickType_t xPendedTicks = ( TickType_t ) 0U;
 PRIVILEGED_DATA static volatile BaseType_t xYieldPendings[ configNUM_CORES ] = { pdFALSE };
 PRIVILEGED_DATA static volatile BaseType_t xNumOfOverflows = ( BaseType_t ) 0;
@@ -6437,3 +6451,14 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
     #endif
 
 #endif /* if ( configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H == 1 ) */
+
+#if ( ( ESP_PLATFORM == 1 ) && ( configNUM_CORES > 1 ) )
+/*
+Workaround for non-thread safe multi-core OS startup (see IDF-4524)
+*/
+void vTaskStartSchedulerOtherCores( void )
+{
+    /* This function is always called with interrupts disabled*/
+    xSchedulerRunning = pdTRUE;
+}
+#endif // ( ESP_PLATFORM == 1 ) && ( configNUM_CORES > 1
