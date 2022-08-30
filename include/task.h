@@ -271,7 +271,7 @@ typedef enum
 #define taskSCHEDULER_RUNNING        ( ( BaseType_t ) 2 )
 
 /* Check if core value is valid */
-#define taskVALID_CORE_ID( xCoreID ) ( ( BaseType_t ) ( ( 0 <= xCoreID ) && ( xCoreID < configNUM_CORES ) ) )
+#define taskVALID_CORE_ID( xCoreID ) ( ( BaseType_t ) ( ( 0 <= (BaseType_t) xCoreID ) && ( (BaseType_t) xCoreID < configNUM_CORES ) ) )
 
 /*-----------------------------------------------------------
 * TASK CREATION API
@@ -3272,6 +3272,25 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
  * For SMP this is not defined by the port.
  */
 void vTaskYieldWithinAPI( void );
+
+/* ------------------------------------------------ IDF Compatibility --------------------------------------------------
+ *
+ * ------------------------------------------------------------------------------------------------------------------ */
+
+#ifdef ESP_PLATFORM
+
+#if ( configNUM_CORES > 1 )
+/*
+Workaround for non-thread safe multi-core OS startup (see IDF-4524)
+This function must be called with interrupts disabled on all cores other than
+core 0 during startup.
+*/
+void vTaskStartSchedulerOtherCores( void );
+#endif // configNUM_CORES > 1
+
+#include "idf_additions.h"
+
+#endif //ESP_PLATFORM
 
 /* *INDENT-OFF* */
 #ifdef __cplusplus
